@@ -5715,6 +5715,24 @@ let subroutine_signatures = [
    ])
 );
 
+("sha256_block_data_order_nohw",
+  ([(*args*)
+     ("state", "uint32_t*", (*is const?*)"false");
+     ("data", "uint8_t*", (*is const?*)"true");
+     ("num_blocks", "size_t", (*is const?*)"false");
+   ],
+   "void",
+   [(* input buffers *)
+    ("state", "8"(* num elems *), 4(* elem bytesize *));
+    ("data", "16*num_blocks"(* num elems *), 4(* elem bytesize *));
+   ],
+   [(* output buffers *)
+    ("state", "8"(* num elems *), 4(* elem bytesize *));
+   ],
+   [(* temporary buffers *)
+   ])
+);
+
 ("sha3_keccak4_f1600",
   ([(*args*)
      ("a", "uint64_t[100]", (*is const?*)"false");

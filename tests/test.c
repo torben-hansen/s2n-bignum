@@ -15589,6 +15589,143 @@ int test_secp256k1_jmixadd_alt(void)
   return 0;
 }
 
+// Reference SHA-256 block compression for testing
+// sha256_block_data_order_nohw_s2n_bignum, mirroring its interface:
+// state[8] are the native-endian working variables H0..H7, data points at
+// num_blocks 64-byte big-endian message blocks. This is exactly the
+// FIPS-180-4 Section 6.2 block operation: no message padding, no length
+// append, no final byte-swap of the state.
+
+static const uint32_t sha256ref_K[64] = {
+  0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+};
+
+static uint32_t sha256ref_rotr(uint32_t x,int n)
+{ return (x >> n) | (x << (32 - n)); }
+
+void reference_sha256_block(uint32_t state[8],const uint8_t *data,size_t num_blocks)
+{ size_t blk;
+  uint32_t W[64], a, b, c, d, e, f, g, h, T1, T2;
+  int s;
+  for (blk = 0; blk < num_blocks; ++blk)
+   { const uint8_t *p = data + 64*blk;
+     for (s = 0; s < 16; ++s)
+       W[s] = ((uint32_t)p[4*s] << 24) | ((uint32_t)p[4*s+1] << 16) |
+              ((uint32_t)p[4*s+2] << 8) | ((uint32_t)p[4*s+3]);
+     for (s = 16; s < 64; ++s)
+      { uint32_t s0 = sha256ref_rotr(W[s-15],7) ^ sha256ref_rotr(W[s-15],18) ^ (W[s-15] >> 3);
+        uint32_t s1 = sha256ref_rotr(W[s-2],17) ^ sha256ref_rotr(W[s-2],19) ^ (W[s-2] >> 10);
+        W[s] = W[s-16] + s0 + W[s-7] + s1;
+      }
+     a = state[0]; b = state[1]; c = state[2]; d = state[3];
+     e = state[4]; f = state[5]; g = state[6]; h = state[7];
+     for (s = 0; s < 64; ++s)
+      { uint32_t S1 = sha256ref_rotr(e,6) ^ sha256ref_rotr(e,11) ^ sha256ref_rotr(e,25);
+        uint32_t ch = (e & f) ^ (~e & g);
+        uint32_t S0 = sha256ref_rotr(a,2) ^ sha256ref_rotr(a,13) ^ sha256ref_rotr(a,22);
+        uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
+        T1 = h + S1 + ch + sha256ref_K[s] + W[s];
+        T2 = S0 + maj;
+        h = g; g = f; f = e; e = d + T1; d = c; c = b; b = a; a = T1 + T2;
+      }
+     state[0] += a; state[1] += b; state[2] += c; state[3] += d;
+     state[4] += e; state[5] += f; state[6] += g; state[7] += h;
+   }
+}
+
+int test_sha256_block_data_order_nohw(void)
+{ uint64_t t;
+  int i;
+  static const uint32_t H0[8] = {
+    0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,
+    0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19
+  };
+
+  // Skip test on non-x86_64 architectures (function is x86-only)
+  if (get_arch_name() != ARCH_X86_64) return 0;
+
+#ifdef __x86_64__
+  printf("Testing sha256_block_data_order_nohw with %d cases\n",tests);
+
+  // FIPS-180-4 known-answer vectors: independent published ground truth.
+  // The function compresses blocks, so feed properly padded blocks starting
+  // from H0 and compare the resulting state to the published digests.
+  { struct { const char *msg; int nblocks; uint32_t digest[8]; } kat[] = {
+      { "abc", 1,
+        { 0xba7816bf,0x8f01cfea,0x414140de,0x5dae2223,
+          0xb00361a3,0x96177a9c,0xb410ff61,0xf20015ad } },
+      { "", 1,
+        { 0xe3b0c442,0x98fc1c14,0x9afbf4c8,0x996fb924,
+          0x27ae41e4,0x649b934c,0xa495991b,0x7852b855 } },
+      { "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", 2,
+        { 0x248d6a61,0xd20638b8,0xe5c02693,0x0c3e6039,
+          0xa33ce459,0x64ff2167,0xf6ecedd4,0x19db06c1 } },
+    };
+    int nk = (int)(sizeof(kat)/sizeof(kat[0])), v;
+    for (v = 0; v < nk; ++v)
+     { uint8_t block[128];
+       uint32_t st[8];
+       size_t mlen = strlen(kat[v].msg);
+       uint64_t bitlen = (uint64_t)mlen * 8;
+       memset(block,0,sizeof(block));
+       memcpy(block,kat[v].msg,mlen);
+       block[mlen] = 0x80;
+       for (i = 0; i < 8; ++i)
+         block[64*kat[v].nblocks - 1 - i] = (uint8_t)(bitlen >> (8*i));
+       for (i = 0; i < 8; ++i) st[i] = H0[i];
+       sha256_block_data_order_nohw_s2n_bignum(st,block,(size_t)kat[v].nblocks);
+       for (i = 0; i < 8; ++i)
+        { if (st[i] != kat[v].digest[i])
+           { printf("### FIPS KAT disparity (msg \"%s\"): state[%d] = 0x%08"PRIx32
+                    " not 0x%08"PRIx32"\n",kat[v].msg,i,st[i],kat[v].digest[i]);
+             return 1;
+           }
+        }
+       if (VERBOSE)
+         printf("OK: FIPS-180-4 \"%s\" digest = 0x%08"PRIx32"...0x%08"PRIx32"\n",
+                kat[v].msg,st[0],st[7]);
+     }
+  }
+
+  // Random multi-block fuzzing against the C reference: arbitrary starting
+  // state and message data, 1..6 blocks per call.
+  for (t = 0; t < (uint64_t)tests; ++t)
+   { uint32_t st_asm[8], st_ref[8];
+     int nblk = 1 + ((unsigned) rand() % 6);
+     int nbytes = 64 * nblk;
+     for (i = 0; i < 8; ++i) st_asm[i] = st_ref[i] = (uint32_t) random64();
+     for (i = 0; i < nbytes; ++i) bb1[i] = (uint8_t)(rand() & 0xff);
+
+     sha256_block_data_order_nohw_s2n_bignum(st_asm,bb1,(size_t)nblk);
+     reference_sha256_block(st_ref,bb1,(size_t)nblk);
+
+     for (i = 0; i < 8; ++i)
+      { if (st_asm[i] != st_ref[i])
+         { printf("### Disparity sha256 block-compress [nblocks %d]: state[%d] "
+                  "code = 0x%08"PRIx32" reference = 0x%08"PRIx32"\n",
+                  nblk,i,st_asm[i],st_ref[i]);
+           return 1;
+         }
+      }
+     if (VERBOSE)
+       printf("OK: sha256_block_data_order_nohw [nblocks %d] state[0] = 0x%08"PRIx32"\n",
+              nblk,st_asm[0]);
+   }
+
+  printf("All OK\n");
+  return 0;
+#else
+  return 0;
+#endif
+}
+
 int test_sha3_keccak_f1600(void)
 { uint64_t t, i;
   uint64_t a[25], b[25], c[25];
@@ -17604,6 +17741,7 @@ int main(int argc, char *argv[])
   functionaltest(all,"secp256k1_jdouble_alt",test_secp256k1_jdouble_alt);
   functionaltest(bmi,"secp256k1_jmixadd",test_secp256k1_jmixadd);
   functionaltest(all,"secp256k1_jmixadd_alt",test_secp256k1_jmixadd_alt);
+  functionaltest(all,"sha256_block_data_order_nohw",test_sha256_block_data_order_nohw);
   functionaltest(all,"sha3_keccak_f1600",test_sha3_keccak_f1600);
   functionaltest(all,"sha3_keccak4_f1600",test_sha3_keccak4_f1600);
   functionaltest(all,"sha3_keccak4_f1600_alt",test_sha3_keccak4_f1600_alt);

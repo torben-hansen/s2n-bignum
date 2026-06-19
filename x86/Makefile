@@ -388,6 +388,7 @@ BIGNUM_OBJ = curve25519/bignum_add_p25519.o \
              secp256k1/bignum_tomont_p256k1_alt.o \
              secp256k1/bignum_triple_p256k1.o \
              secp256k1/bignum_triple_p256k1_alt.o \
+             sha256/sha256_block_data_order_nohw.o \
              sha3/sha3_keccak_f1600.o \
              sha3/sha3_keccak4_f1600.o \
              sha3/sha3_keccak4_f1600_alt.o \
@@ -430,6 +431,13 @@ TUTORIAL_OBJ = $(filter-out tutorial/safety.o, $(TUTORIAL_PROOFS:.ml=.o)) \
 .PHONY: bmi clean clobber
 
 # Actual object files for execution, with the "native" ABI
+
+# The sha256 scalar block function is only shipped as AT&T-syntax source
+# (under ../x86_att); build its object straight from there. The pipeline
+# yields a byte-identical object to the one the HOL Light proof reads.
+sha256/sha256_block_data_order_nohw.o : ../x86_att/sha256/sha256_block_data_order_nohw.S
+	mkdir -p sha256
+	cat $< | $(PREPROCESS) | $(SPLIT) | $(ASSEMBLE) -o $@ -
 
 %.o : %.S ; cat $< | $(PREPROCESS) | $(SPLIT) | $(ASSEMBLE) -o $@ -
 
