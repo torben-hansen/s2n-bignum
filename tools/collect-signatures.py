@@ -342,7 +342,7 @@ onlyInX86 = [
   "bignum_triple_p384_alt",
   "bignum_triple_p521_alt",
   "bignum_triple_sm2_alt",
-  "md5_block_asm_data_order",
+  "md5_compress",
   "mldsa_intt",
   "mldsa_ntt",
   "mldsa_nttunpack",

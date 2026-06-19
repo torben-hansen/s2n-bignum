@@ -13,7 +13,7 @@
 (* refold raw hardware bit-op terms into md5_f/g/h/i at cut points.          *)
 (*                                                                           *)
 (* The asm forms below are read off the frozen instruction bytes in          *)
-(* x86/proofs/md5_block_asm_data_order.ml (the bytes are the ground truth,   *)
+(* x86/proofs/md5_compress.ml (the bytes are the ground truth,               *)
 (* not C-macro prose).  With a,b,c,d the working words:                      *)
 (*                                                                           *)
 (*  F (rounds 0..15):  mov d,t ; xor c,t ; and b,t ; xor d,t                 *)

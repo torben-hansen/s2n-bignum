@@ -4752,7 +4752,7 @@ let subroutine_signatures = [
    ])
 );
 
-("md5_block_asm_data_order",
+("md5_compress",
   ([(*args*)
      ("state", "uint32_t[static 4]", (*is const?*)"false");
      ("data", "uint8_t*", (*is const?*)"true");

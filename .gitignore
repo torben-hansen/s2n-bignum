@@ -5,7 +5,6 @@
 *.obj
 .vscode
 tests/test
-tests/test_md5
 tests/ctCheck
 benchmarks/benchmark
 x86/x86-insns.ml

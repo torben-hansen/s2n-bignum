@@ -15589,10 +15589,10 @@ int test_secp256k1_jmixadd_alt(void)
   return 0;
 }
 
-// MD5 reference for the differential test of md5_block_asm_data_order. Ported
-// from the standalone gate tests/test_md5.c (round constants/schedule/rotates
-// from aws-lc crypto/fipsmodule/md5/md5.c). Little-endian 32-bit primitives
-// match the asm's `movl N(%rsi),%rNd` loads; all 16 words are loaded up front.
+// MD5 reference for the differential test of md5_compress (round constants/
+// schedule/rotates from aws-lc crypto/fipsmodule/md5/md5.c). Little-endian
+// 32-bit primitives match the asm's `movl N(%rsi),%rNd` loads; all 16 words
+// are loaded up front.
 
 static uint32_t md5ref_load_u32_le(const uint8_t *p)
 { return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
@@ -15707,10 +15707,10 @@ static void reference_md5_block(uint32_t *state, const uint8_t *data,
 // Differential test: the asm block fn must match the C reference on random
 // (initial state, num blocks of random data) for num in {0,1,2,3,4}; num==0
 // exercises the no-op guard. Random input drawn from the shared bb1 buffer.
-int test_md5_block_asm_data_order(void)
+int test_md5_compress(void)
 { uint64_t t, i, num;
   uint32_t s_ref[4], s_asm[4];
-  printf("Testing md5_block_asm_data_order with %d cases\n",tests);
+  printf("Testing md5_compress with %d cases\n",tests);
 
   for (t = 0; t < tests; ++t)
    { num = (uint64_t)(rand() % 5);
@@ -15722,11 +15722,11 @@ int test_md5_block_asm_data_order(void)
      for (i = 0; i < num * 64; ++i) bb1[i] = (uint8_t)(rand() & 0xff);
 
      reference_md5_block(s_ref, bb1, num);
-     md5_block_asm_data_order(s_asm, bb1, num);
+     md5_compress(s_asm, bb1, num);
 
      for (i = 0; i < 4; ++i)
       { if (s_ref[i] != s_asm[i])
-         { printf("Error in md5_block_asm_data_order (case %"PRIu64", "
+         { printf("Error in md5_compress (case %"PRIu64", "
                   "num=%"PRIu64") word %"PRIu64": code = 0x%08"PRIx32
                   " while reference = 0x%08"PRIx32"\n",
                   t,num,i,s_asm[i],s_ref[i]);
@@ -17694,7 +17694,7 @@ int main(int argc, char *argv[])
   functionaltest(bmi,"edwards25519_scalarmuldouble",test_edwards25519_scalarmuldouble);
   functionaltest(all,"edwards25519_scalarmuldouble_alt",test_edwards25519_scalarmuldouble_alt);
   functionaltest(all,"mldsa_caddq",test_mldsa_caddq);
-  functionaltest(all,"md5_block_asm_data_order",test_md5_block_asm_data_order);
+  functionaltest(all,"md5_compress",test_md5_compress);
   functionaltest(all,"mldsa_intt",test_mldsa_intt);
   functionaltest(all,"mldsa_ntt",test_mldsa_ntt);
   functionaltest(all,"mldsa_nttunpack",test_mldsa_nttunpack);

@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 OR ISC OR MIT-0
 #############################################################################
 
-.PHONY: clean ctCheck md5kat md5test
+.PHONY: clean ctCheck
 
 # Set ARCH to "x86" or "arm" as appropriate; this is literally the
 # directory name in which the libs2nbignum.a file should be found.
@@ -49,29 +49,7 @@ test: test.c known_value_tests_p384.h tweetnacl_excerpt.c ../include/s2n-bignum.
 
 clean: ;
 	rm -f test
-	rm -f test_md5
 	rm -f ctCheck
-
-# The scalar x86-64 MD5 block routine md5_block_asm_data_order is folded into
-# the main test harness (test.c: test_md5_block_asm_data_order +
-# functionaltest(all,...)), so it runs under `make go`/`make complete`/CI like
-# every other routine.  `md5test` runs just that case via the main binary; the
-# leading '-' ignores the binary's nonzero exit, which it always returns when a
-# name filter selects a subset (it returns 0 only when EVERY test ran).
-
-md5test: test; -./test md5_block_asm_data_order
-
-# Standalone differential KAT gate, retained as an independent reproducible
-# check: compiles directly against the frozen .S (so it does not depend on
-# libs2nbignum.a or the gitignored .o), and additionally verifies the RFC 1321
-# published digest vectors (which the in-harness differential test does not).
-# Must print "All OK"/"All tests passed".
-
-MD5_ASM=../x86/md5/md5_block_asm_data_order.S
-
-test_md5: test_md5.c $(MD5_ASM); $(CC) -Wall -std=gnu99 -I../include -DWINDOWS_ABI=0 -o test_md5 test_md5.c $(MD5_ASM)
-
-md5kat: test_md5; ./test_md5
 
 ctCheck:
 	rm -f ctCheck

@@ -4,11 +4,11 @@
  *)
 
 (* ========================================================================= *)
-(* MD5 block compression, scalar x86-64 (md5_block_asm_data_order).          *)
+(* MD5 block compression, scalar x86-64 (md5_compress).                      *)
 (*                                                                           *)
 (* The function processes num_blocks 64-byte input blocks, updating the      *)
 (* 4-doubleword MD5 chaining state in place.  Source: frozen transpiler      *)
-(* output x86/md5/md5_block_asm_data_order.S, assembled to the sibling       *)
+(* output x86/md5/md5_compress.S, assembled to the sibling                   *)
 (* objects .o (SysV, WINDOWS_ABI=0) and .obj (Windows, WINDOWS_ABI=1) by     *)
 (* the x86/Makefile pattern rules.                                           *)
 (*                                                                           *)
@@ -20,11 +20,11 @@
 needs "x86/proofs/base.ml";;
 needs "x86/proofs/utils/md5_bridge.ml";;  (* Layer-1 spec + Layer-2 bridges *)
 
-(**** print_literal_from_elf "x86/md5/md5_block_asm_data_order.o";;
+(**** print_literal_from_elf "x86/md5/md5_compress.o";;
  ****)
 
-let md5_block_asm_data_order_mc = define_assert_from_elf
-  "md5_block_asm_data_order_mc" "x86/md5/md5_block_asm_data_order.o"
+let md5_compress_mc = define_assert_from_elf
+  "md5_compress_mc" "x86/md5/md5_compress.o"
 [
   0xf3; 0x0f; 0x1e; 0xfa;  (* ENDBR64 *)
   0x55;                    (* PUSH (% rbp) *)
@@ -756,20 +756,20 @@ let md5_block_asm_data_order_mc = define_assert_from_elf
 
 (* Trimmed variant: strips the leading 4-byte ENDBR64.                       *)
 
-let md5_block_asm_data_order_tmc =
-  define_trimmed "md5_block_asm_data_order_tmc" md5_block_asm_data_order_mc;;
+let md5_compress_tmc =
+  define_trimmed "md5_compress_tmc" md5_compress_mc;;
 
 (* Core execution rule (trimmed, BUTLAST drops the final RET); used by the   *)
 (* core _CORRECT proof, which runs from entry pc+0x8 to exit pc+0x8d6.       *)
 
-let MD5_BLOCK_ASM_DATA_ORDER_EXEC =
-  X86_MK_CORE_EXEC_RULE md5_block_asm_data_order_tmc;;
+let MD5_COMPRESS_EXEC =
+  X86_MK_CORE_EXEC_RULE md5_compress_tmc;;
 
 (* Full execution rule (untrimmed, ENDBR64 + RET included); used when        *)
 (* wrapping the core theorem into the subroutine forms.                      *)
 
-let MD5_BLOCK_ASM_DATA_ORDER_EXEC_FULL =
-  X86_MK_EXEC_RULE md5_block_asm_data_order_mc;;
+let MD5_COMPRESS_EXEC_FULL =
+  X86_MK_EXEC_RULE md5_compress_mc;;
 
 (* ========================================================================= *)
 (* Phase 3 - one-round `ensures` (smallest meaningful unit).                 *)
@@ -816,10 +816,10 @@ let MD5_LEA_K0 = prove
  (`word_zx (word 18446744073028674680 :int64) :int32 = word 0xd76aa478`,
   CONV_TAC WORD_BLAST);;
 
-let MD5_BLOCK_ASM_DATA_ORDER_ROUND0 = prove
+let MD5_COMPRESS_ROUND0 = prove
  (`!a b c d m pc.
      ensures x86
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x37) /\
             read RAX s = word_zx (a:int32) /\
             read RBX s = word_zx (b:int32) /\
@@ -837,7 +837,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_ROUND0 = prove
   CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
-  X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--10) THEN
+  X86_STEPS_TAC MD5_COMPRESS_EXEC (1--10) THEN
   ENSURES_FINAL_STATE_TAC THEN
   ASM_REWRITE_TAC[] THEN
   (* Remaining goal: the RAX word identity.  Drop the (self-contained) flag  *)
@@ -1055,7 +1055,7 @@ let MD5_LEG1_TAC : tactic =
   CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
-  X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--38) THEN
+  X86_STEPS_TAC MD5_COMPRESS_EXEC (1--38) THEN
   ENSURES_FINAL_STATE_TAC THEN
   MD5_CLOSE_SEG_TAC;;
 
@@ -1068,7 +1068,7 @@ let MD5_LEGK_TAC chunk : tactic =
   CONV_TAC(DEPTH_CONV EL_CONV) THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
-  X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--36) THEN
+  X86_STEPS_TAC MD5_COMPRESS_EXEC (1--36) THEN
   ENSURES_FINAL_STATE_TAC THEN
   MD5_CLOSE_SEG_TAC;;
 
@@ -1110,10 +1110,10 @@ let md5_seg_invariant k =
 (* discharged inline by re-simulation (sidesteps the bytes_loaded            *)
 (* leg-alignment trap of composing standalone segment lemmas).  Boundaries   *)
 (* are where the register<->spec map returns to the identity.                *)
-let MD5_BLOCK_ASM_DATA_ORDER_R0_15 = prove
+let MD5_COMPRESS_R0_15 = prove
  (`!a b c d m mb pc.
      ensures x86
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x34) /\
             read RSI s = mb /\
             read RAX s = word_zx (a:int32) /\
@@ -1174,7 +1174,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_R0_15 = prove
 (* ========================================================================= *)
 (* Phase 5a - the G group (rounds 16..31), as a clean-seam `ensures`.        *)
 (*                                                                           *)
-(* MD5_G_GROUP runs from pc+0x239 (exactly MD5_BLOCK_ASM_DATA_ORDER_R0_15's  *)
+(* MD5_G_GROUP runs from pc+0x239 (exactly MD5_COMPRESS_R0_15's  *)
 (* exit) to pc+0x4a1, advancing the working state from md5_rounds 16 to      *)
 (* md5_rounds 32.  Pre and post are the SAME clean seam form as R0_15's      *)
 (* post: (RAX,RBX,RCX,RDX) = (EL 0,1,2,3) of md5_rounds{16,32}, RSI = mb,    *)
@@ -1281,7 +1281,7 @@ let MD5_LEGK_G_TAC chunk nsteps : tactic =
   CONV_TAC(DEPTH_CONV EL_CONV) THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
-  X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--nsteps) THEN
+  X86_STEPS_TAC MD5_COMPRESS_EXEC (1--nsteps) THEN
   ENSURES_FINAL_STATE_TAC THEN
   MD5_CLOSE_SEG_G_TAC;;
 
@@ -1324,7 +1324,7 @@ let md5_g_invariant rd idx =
 let MD5_G_GROUP = prove
  (`!a b c d m mb pc.
      ensures x86
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x239) /\
             read RSI s = mb /\
             read RAX s = word_zx (EL 0 (md5_rounds 16 m [a;b;c;d])) /\
@@ -1466,7 +1466,7 @@ let MD5_LEGK_H_TAC chunk nsteps : tactic =
   CONV_TAC(DEPTH_CONV EL_CONV) THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
-  X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--nsteps) THEN
+  X86_STEPS_TAC MD5_COMPRESS_EXEC (1--nsteps) THEN
   ENSURES_FINAL_STATE_TAC THEN
   MD5_CLOSE_SEG_H_TAC;;
 
@@ -1506,7 +1506,7 @@ let md5_h_invariant rd idx =
 let MD5_H_GROUP = prove
  (`!a b c d m mb pc.
      ensures x86
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x4a1) /\
             read RSI s = mb /\
             read RAX s = word_zx (EL 0 (md5_rounds 32 m [a;b;c;d])) /\
@@ -1673,7 +1673,7 @@ let MD5_LEGK_I_TAC chunk nsteps : tactic =
   CONV_TAC(DEPTH_CONV EL_CONV) THEN
   REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
-  X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--nsteps) THEN
+  X86_STEPS_TAC MD5_COMPRESS_EXEC (1--nsteps) THEN
   ENSURES_FINAL_STATE_TAC THEN
   MD5_CLOSE_SEG_I_TAC;;
 
@@ -1714,7 +1714,7 @@ let md5_i_invariant rd idx =
 let MD5_I_GROUP = prove
  (`!a b c d m mb pc.
      ensures x86
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x676) /\
             read RSI s = mb /\
             read RAX s = word_zx (EL 0 (md5_rounds 48 m [a;b;c;d])) /\
@@ -1798,7 +1798,7 @@ let MD5_I_GROUP = prove
 let MD5_ADDBACK_SEG = prove
  (`!a b c d m mb pc.
      ensures x86
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x8b1) /\
             read RSI s = mb /\
             read RAX s = word_zx (EL 0 (md5_rounds 64 m [a;b;c;d])) /\
@@ -1819,7 +1819,7 @@ let MD5_ADDBACK_SEG = prove
         MAYCHANGE [events])`,
   REWRITE_TAC[SOME_FLAGS] THEN REPEAT STRIP_TAC THEN
   ENSURES_INIT_TAC "s0" THEN
-  X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--4) THEN
+  X86_STEPS_TAC MD5_COMPRESS_EXEC (1--4) THEN
   ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
   REPEAT CONJ_TAC THEN
   SIMP_TAC[WORD_ZX_ZX; WORD_ZX_TRIVIAL; DIMINDEX_32; DIMINDEX_64; LE_REFL; ARITH] THEN
@@ -1828,7 +1828,7 @@ let MD5_ADDBACK_SEG = prove
 (* ========================================================================= *)
 (* Phase 5b (final): the full single-block loop BODY.                        *)
 (*                                                                           *)
-(* MD5_BLOCK_ASM_DATA_ORDER_BODY chains the four committed GROUP ensures     *)
+(* MD5_COMPRESS_BODY chains the four committed GROUP ensures     *)
 (* (R0_15 ;; G ;; H ;; I) and the add-back (MD5_ADDBACK_SEG) into one        *)
 (* ensures from pc+0x34 (core entry, first M[0] load) to pc+0x8bd (just      *)
 (* past the four feed-forward adds).  Post: (RAX,RBX,RCX,RDX) = word_zx of   *)
@@ -1892,7 +1892,7 @@ let MD5_LIFT_GROUP_REGS grp =
     REWRITE_TAC[ASSIGNS_THM] THEN
     REWRITE_TAC[LEFT_IMP_EXISTS_THM] THEN REPEAT GEN_TAC THEN
     NONSELFMODIFYING_STATE_UPDATE_TAC
-      (MATCH_MP bytes_loaded_update (fst MD5_BLOCK_ASM_DATA_ORDER_EXEC)) THEN
+      (MATCH_MP bytes_loaded_update (fst MD5_COMPRESS_EXEC)) THEN
     ASSUMPTION_STATE_UPDATE_TAC THEN DISCH_THEN(K ALL_TAC) THEN
     ASM_REWRITE_TAC[]];;
 
@@ -1928,10 +1928,10 @@ let md5_body_regseam rd = parse_term (Printf.sprintf
         read (memory :> bytes32 (word_add mb (word 60))) s = EL 15 m"
   rd rd rd rd);;
 
-let MD5_BLOCK_ASM_DATA_ORDER_BODY = prove
+let MD5_COMPRESS_BODY = prove
  (`!a b c d m mb pc.
      ensures x86
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x34) /\
             read RSI s = mb /\
             read RAX s = word_zx (a:int32) /\
@@ -1958,7 +1958,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_BODY = prove
             read (memory :> bytes32 (word_add mb (word 52))) s = EL 13 m /\
             read (memory :> bytes32 (word_add mb (word 56))) s = EL 14 m /\
             read (memory :> bytes32 (word_add mb (word 60))) s = EL 15 m)
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x8bd) /\
             read RSI s = mb /\
             read RAX s = word_zx (word_add a (EL 0 (md5_rounds 64 m [a;b;c;d]))) /\
@@ -1973,7 +1973,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_BODY = prove
   ENSURES_SEQUENCE_TAC `pc + 0x8b1` (md5_body_regseam "64") THEN CONJ_TAC THENL
    [(* rounds 0..63, the four groups composed with R8/R9/R14/R15 threaded *)
     ENSURES_SEQUENCE_TAC `pc + 0x239` (md5_body_regseam "16") THEN CONJ_TAC THENL
-     [MD5_LIFT_GROUP_REGS MD5_BLOCK_ASM_DATA_ORDER_R0_15;
+     [MD5_LIFT_GROUP_REGS MD5_COMPRESS_R0_15;
       ENSURES_SEQUENCE_TAC `pc + 0x4a1` (md5_body_regseam "32") THEN CONJ_TAC THENL
        [MD5_LIFT_GROUP_REGS MD5_G_GROUP;
         ENSURES_SEQUENCE_TAC `pc + 0x676` (md5_body_regseam "48") THEN CONJ_TAC THENL
@@ -1987,7 +1987,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_BODY = prove
 (*                                                                           *)
 (* MD5_LIFT_BODY is MD5_LIFT_GROUP_REGS WITHOUT the bytes_loaded recovery    *)
 (* step (NONSELFMODIFYING_STATE_UPDATE_TAC): unlike the group/segment        *)
-(* lemmas, MD5_BLOCK_ASM_DATA_ORDER_BODY's postcondition ALREADY carries     *)
+(* lemmas, MD5_COMPRESS_BODY's postcondition ALREADY carries     *)
 (* `bytes_loaded s' ...`, so the lifted post needs no separate re-derivation *)
 (* (and re-deriving it clashes -- `could not prove that updates will not     *)
 (* modify the program code`).  All other deltas vs MD5_LIFT_GROUP_REGS are   *)
@@ -2061,7 +2061,7 @@ let md5_iter_seam8bd = parse_term
 let MD5_LOOP_ITER = prove
  (`!a b c d m mb eptr pc.
      ensures x86
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x28) /\
             read RSI s = mb /\ read RDI s = eptr /\
             read RAX s = word_zx (a:int32) /\ read RBX s = word_zx (b:int32) /\
@@ -2082,7 +2082,7 @@ let MD5_LOOP_ITER = prove
             read (memory :> bytes32 (word_add mb (word 52))) s = EL 13 m /\
             read (memory :> bytes32 (word_add mb (word 56))) s = EL 14 m /\
             read (memory :> bytes32 (word_add mb (word 60))) s = EL 15 m)
-       (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+       (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
             read RIP s = word (pc + 0x8c4) /\
             read RSI s = word_add mb (word 64) /\
             read RDI s = eptr /\
@@ -2099,17 +2099,17 @@ let MD5_LOOP_ITER = prove
   ENSURES_SEQUENCE_TAC `pc + 0x34` md5_iter_seam34 THEN CONJ_TAC THENL
    [(* leg A: the 4 register saves R8/R9/R14/R15 <- working A..D. *)
     ENSURES_INIT_TAC "s0" THEN
-    X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--4) THEN
+    X86_STEPS_TAC MD5_COMPRESS_EXEC (1--4) THEN
     ENSURES_FINAL_STATE_TAC THEN
     RULE_ASSUM_TAC(REWRITE_RULE[WORD_ADD_0]) THEN ASM_REWRITE_TAC[] THEN
     REPEAT CONJ_TAC THEN
     SIMP_TAC[WORD_ZX_ZX; WORD_ZX_TRIVIAL; DIMINDEX_32; DIMINDEX_64; LE_REFL; ARITH];
     ENSURES_SEQUENCE_TAC `pc + 0x8bd` md5_iter_seam8bd THEN CONJ_TAC THENL
      [(* leg B: the 64-round body, lifting RDI = eptr through its frame. *)
-      MD5_LIFT_BODY MD5_BLOCK_ASM_DATA_ORDER_BODY;
+      MD5_LIFT_BODY MD5_COMPRESS_BODY;
       (* leg C: add $0x40,%rsi ; cmp %rdi,%rsi (sets RSI' and CF). *)
       ENSURES_INIT_TAC "s0" THEN
-      X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--2) THEN
+      X86_STEPS_TAC MD5_COMPRESS_EXEC (1--2) THEN
       ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[]]]);;
 
 (* ------------------------------------------------------------------------- *)
@@ -2220,7 +2220,7 @@ let MD5_LOOP_BODY_STEP = prove
         LENGTH blocks = val nb /\
         i < val nb
         ==> ensures x86
-              (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+              (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
                    read RIP s = word (pc + 0x28) /\
                    read RBP s = statep /\
                    read RDI s = word_add datap (word (64 * val nb)) /\
@@ -2237,7 +2237,7 @@ let MD5_LOOP_BODY_STEP = prove
                           ==> read (memory :> bytes32
                                      (word_add datap (word (64 * j + 4 * k)))) s
                               = EL k (EL j (blocks:(int32 list)list))))
-              (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+              (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
                    read RIP s = word (pc + 0x8c4) /\
                    read RBP s = statep /\
                    read RDI s = word_add datap (word (64 * val nb)) /\
@@ -2316,7 +2316,7 @@ let MD5_LOOP_BODY_STEP = prove
        [ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC; DISCH_THEN ACCEPT_TAC]]]);;
 
 (* ========================================================================= *)
-(* Phase 6b: the core theorem MD5_BLOCK_ASM_DATA_ORDER_CORRECT.              *)
+(* Phase 6b: the core theorem MD5_COMPRESS_CORRECT.              *)
 (*                                                                           *)
 (* Entry pc+0x8 (after the 5 callee-save pushes, in-frame SP), exit pc+0x8d6 *)
 (* (before the pops).  C_ARGUMENTS [statep; datap; num_blocks] (rdi,rsi,rdx).*)
@@ -2339,15 +2339,15 @@ let MD5_LOOP_BODY_STEP = prove
 (* do-while via ENSURES_WHILE_PUP_TAC + MD5_LOOP_BODY_STEP.                  *)
 (* ========================================================================= *)
 
-let MD5_BLOCK_ASM_DATA_ORDER_CORRECT = prove
+let MD5_COMPRESS_CORRECT = prove
  (`!a b c d blocks statep datap nb pc.
-        nonoverlapping (word pc, LENGTH(BUTLAST md5_block_asm_data_order_tmc))
+        nonoverlapping (word pc, LENGTH(BUTLAST md5_compress_tmc))
                        (statep:int64, 16) /\
         nonoverlapping (statep:int64, 16) (datap:int64, 64 * val(nb:int64)) /\
         val datap + 64 * val nb < 2 EXP 64 /\
         LENGTH blocks = val nb
         ==> ensures x86
-              (\s. bytes_loaded s (word pc) (BUTLAST md5_block_asm_data_order_tmc) /\
+              (\s. bytes_loaded s (word pc) (BUTLAST md5_compress_tmc) /\
                    read RIP s = word (pc + 0x8) /\
                    C_ARGUMENTS [statep; datap; nb] s /\
                    read (memory :> bytes32 statep) s = (a:int32) /\
@@ -2372,7 +2372,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_CORRECT = prove
                MAYCHANGE SOME_FLAGS ,, MAYCHANGE [events] ,,
                MAYCHANGE [memory :> bytes (statep, 16)])`,
   REWRITE_TAC[NONOVERLAPPING_CLAUSES; SOME_FLAGS; C_ARGUMENTS;
-              fst MD5_BLOCK_ASM_DATA_ORDER_EXEC] THEN REPEAT STRIP_TAC THEN
+              fst MD5_COMPRESS_EXEC] THEN REPEAT STRIP_TAC THEN
   (* Seam at pc+0x8ca (loop exit / nblk=0 join): RBP=statep + final state. *)
   ENSURES_SEQUENCE_TAC `pc + 0x8ca`
    `\s. read RBP s = statep /\
@@ -2387,7 +2387,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_CORRECT = prove
       SUBGOAL_THEN `blocks:(int32 list)list = []` SUBST_ALL_TAC THENL
        [REWRITE_TAC[GSYM LENGTH_EQ_NIL] THEN ASM_REWRITE_TAC[]; ALL_TAC] THEN
       REWRITE_TAC[md5_blocks] THEN ENSURES_INIT_TAC "s0" THEN
-      X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--9) THEN
+      X86_STEPS_TAC MD5_COMPRESS_EXEC (1--9) THEN
       ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
       SUBGOAL_THEN `nb:int64 = word 0` SUBST_ALL_TAC THENL
        [REWRITE_TAC[GSYM VAL_EQ_0] THEN ASM_REWRITE_TAC[]; ALL_TAC] THEN
@@ -2417,7 +2417,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_CORRECT = prove
         (* init leg pc+0x8 -> pc+0x28 (p 0) *)
         REWRITE_TAC[SUB_LIST_NIL_FOLD; MULT_CLAUSES; WORD_ADD_0] THEN
         ENSURES_INIT_TAC "s0" THEN
-        X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--9) THEN
+        X86_STEPS_TAC MD5_COMPRESS_EXEC (1--9) THEN
         ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
         REWRITE_TAC[WORD_SHL_6; MULT_CLAUSES] THEN
         CONV_TAC(ONCE_DEPTH_CONV EL_CONV) THEN REWRITE_TAC[] THEN
@@ -2442,7 +2442,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_CORRECT = prove
         ASM_REWRITE_TAC[];
         (* back-edge leg pc+0x8c4 -> pc+0x28 (jb taken, CF set) *)
         REPEAT STRIP_TAC THEN ENSURES_INIT_TAC "s0" THEN
-        X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--1) THEN
+        X86_STEPS_TAC MD5_COMPRESS_EXEC (1--1) THEN
         ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[];
         (* exit leg pc+0x8c4 -> seam pc+0x8ca (jb NOT taken, CF clear) *)
         SUBGOAL_THEN `SUB_LIST(0,val(nb:int64)) (blocks:(int32 list)list) = blocks`
@@ -2450,11 +2450,11 @@ let MD5_BLOCK_ASM_DATA_ORDER_CORRECT = prove
          [FIRST_X_ASSUM(SUBST1_TAC o SYM) THEN REWRITE_TAC[SUB_LIST_FULL_FOLD];
           ALL_TAC] THEN
         ENSURES_INIT_TAC "s0" THEN
-        X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--1) THEN
+        X86_STEPS_TAC MD5_COMPRESS_EXEC (1--1) THEN
         ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[]]];
     (* ==================== LEG 2: stores pc+0x8ca -> pc+0x8d6 ========= *)
     ENSURES_INIT_TAC "s0" THEN
-    X86_STEPS_TAC MD5_BLOCK_ASM_DATA_ORDER_EXEC (1--4) THEN
+    X86_STEPS_TAC MD5_COMPRESS_EXEC (1--4) THEN
     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[] THEN
     SIMP_TAC[WORD_ZX_ZX; WORD_ZX_TRIVIAL; DIMINDEX_32; DIMINDEX_64;
              LE_REFL; ARITH]]);;
@@ -2479,22 +2479,22 @@ let MD5_BLOCK_ASM_DATA_ORDER_CORRECT = prove
 (* The promoted core's `nonoverlapping (word pc, LENGTH(BUTLAST tmc)) ...`   *)
 (* antecedent is discharged by NONOVERLAPPING_TAC, which needs the code      *)
 (* length as a NUMERAL; we therefore rewrite LENGTH(BUTLAST tmc) -> 2290     *)
-(* (fst MD5_BLOCK_ASM_DATA_ORDER_EXEC) in the core before promoting it.      *)
+(* (fst MD5_COMPRESS_EXEC) in the core before promoting it.      *)
 (* ========================================================================= *)
 
-let MD5_BLOCK_ASM_DATA_ORDER_NOIBT_SUBROUTINE_CORRECT = prove
+let MD5_COMPRESS_NOIBT_SUBROUTINE_CORRECT = prove
  (`!a b c d blocks statep datap nb pc stackpointer returnaddress.
-        nonoverlapping (word pc, LENGTH md5_block_asm_data_order_tmc)
+        nonoverlapping (word pc, LENGTH md5_compress_tmc)
                        (statep:int64, 16) /\
         nonoverlapping (statep:int64, 16) (datap:int64, 64 * val(nb:int64)) /\
         nonoverlapping (word_sub stackpointer (word 40), 48) (statep:int64, 16) /\
         ALL (nonoverlapping (word_sub stackpointer (word 40), 40))
-            [(word pc, LENGTH md5_block_asm_data_order_tmc);
+            [(word pc, LENGTH md5_compress_tmc);
              (datap:int64, 64 * val(nb:int64))] /\
         val datap + 64 * val nb < 2 EXP 64 /\
         LENGTH blocks = val nb
         ==> ensures x86
-              (\s. bytes_loaded s (word pc) md5_block_asm_data_order_tmc /\
+              (\s. bytes_loaded s (word pc) md5_compress_tmc /\
                    read RIP s = word pc /\
                    read RSP s = stackpointer /\
                    read (memory :> bytes64 stackpointer) s = returnaddress /\
@@ -2521,27 +2521,27 @@ let MD5_BLOCK_ASM_DATA_ORDER_NOIBT_SUBROUTINE_CORRECT = prove
                MAYCHANGE [memory :> bytes (statep, 16);
                           memory :> bytes (word_sub stackpointer (word 40), 40)])`,
   GEN_X86_ADD_RETURN_STACK_TAC
-    (X86_MK_EXEC_RULE md5_block_asm_data_order_tmc)
+    (X86_MK_EXEC_RULE md5_compress_tmc)
     (X86_CORE_PROMOTE
-       (REWRITE_RULE[fst MD5_BLOCK_ASM_DATA_ORDER_EXEC]
-          MD5_BLOCK_ASM_DATA_ORDER_CORRECT))
+       (REWRITE_RULE[fst MD5_COMPRESS_EXEC]
+          MD5_COMPRESS_CORRECT))
     `[RBP; RBX; R12; R14; R15]` 40 (5,7));;
 
 (* IBT variant: identical statement against the full (untrimmed) _mc,        *)
 (* derived from the NOIBT theorem by ADD_IBT_RULE (re-adds the ENDBR64).     *)
-let MD5_BLOCK_ASM_DATA_ORDER_SUBROUTINE_CORRECT = prove
+let MD5_COMPRESS_SUBROUTINE_CORRECT = prove
  (`!a b c d blocks statep datap nb pc stackpointer returnaddress.
-        nonoverlapping (word pc, LENGTH md5_block_asm_data_order_mc)
+        nonoverlapping (word pc, LENGTH md5_compress_mc)
                        (statep:int64, 16) /\
         nonoverlapping (statep:int64, 16) (datap:int64, 64 * val(nb:int64)) /\
         nonoverlapping (word_sub stackpointer (word 40), 48) (statep:int64, 16) /\
         ALL (nonoverlapping (word_sub stackpointer (word 40), 40))
-            [(word pc, LENGTH md5_block_asm_data_order_mc);
+            [(word pc, LENGTH md5_compress_mc);
              (datap:int64, 64 * val(nb:int64))] /\
         val datap + 64 * val nb < 2 EXP 64 /\
         LENGTH blocks = val nb
         ==> ensures x86
-              (\s. bytes_loaded s (word pc) md5_block_asm_data_order_mc /\
+              (\s. bytes_loaded s (word pc) md5_compress_mc /\
                    read RIP s = word pc /\
                    read RSP s = stackpointer /\
                    read (memory :> bytes64 stackpointer) s = returnaddress /\
@@ -2567,7 +2567,7 @@ let MD5_BLOCK_ASM_DATA_ORDER_SUBROUTINE_CORRECT = prove
               (MAYCHANGE [RSP] ,, MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
                MAYCHANGE [memory :> bytes (statep, 16);
                           memory :> bytes (word_sub stackpointer (word 40), 40)])`,
-  MATCH_ACCEPT_TAC(ADD_IBT_RULE MD5_BLOCK_ASM_DATA_ORDER_NOIBT_SUBROUTINE_CORRECT));;
+  MATCH_ACCEPT_TAC(ADD_IBT_RULE MD5_COMPRESS_NOIBT_SUBROUTINE_CORRECT));;
 
 (* ========================================================================= *)
 (* Phase 8: the Windows-ABI subroutine theorems.                             *)
@@ -2606,13 +2606,13 @@ let MD5_BLOCK_ASM_DATA_ORDER_SUBROUTINE_CORRECT = prove
 (* Windows frame is 56 = 40 (SysV 5 pushes) + 16 (push rdi/rsi).             *)
 (* ========================================================================= *)
 
-let md5_block_asm_data_order_windows_mc =
-  define_from_elf "md5_block_asm_data_order_windows_mc"
-    "x86/md5/md5_block_asm_data_order.obj";;
+let md5_compress_windows_mc =
+  define_from_elf "md5_compress_windows_mc"
+    "x86/md5/md5_compress.obj";;
 
-let md5_block_asm_data_order_windows_tmc =
-  define_trimmed "md5_block_asm_data_order_windows_tmc"
-    md5_block_asm_data_order_windows_mc;;
+let md5_compress_windows_tmc =
+  define_trimmed "md5_compress_windows_tmc"
+    md5_compress_windows_mc;;
 
 (* Local copy of WINDOWS_X86_WRAP_STACK_TAC (x86.ml) with epilog_len bumped  *)
 (* 3+n -> 4+n for the mov-restore-then-add-rsp epilogue (see comment above). *)
@@ -2721,19 +2721,19 @@ let WINDOWS_X86_WRAP_STACK_TAC_MR =
     X86_STEPS_TAC winexecth ((prolog_len+2)--(prolog_len+epilog_len+1)) THEN
     ENSURES_FINAL_STATE_TAC THEN ASM_REWRITE_TAC[]) (asl,w);;
 
-let MD5_BLOCK_ASM_DATA_ORDER_NOIBT_WINDOWS_SUBROUTINE_CORRECT = prove
+let MD5_COMPRESS_NOIBT_WINDOWS_SUBROUTINE_CORRECT = prove
  (`!a b c d blocks statep datap nb pc stackpointer returnaddress.
-        nonoverlapping (word pc, LENGTH md5_block_asm_data_order_windows_tmc)
+        nonoverlapping (word pc, LENGTH md5_compress_windows_tmc)
                        (statep:int64, 16) /\
         nonoverlapping (statep:int64, 16) (datap:int64, 64 * val(nb:int64)) /\
         nonoverlapping (word_sub stackpointer (word 56), 64) (statep:int64, 16) /\
         ALL (nonoverlapping (word_sub stackpointer (word 56), 56))
-            [(word pc, LENGTH md5_block_asm_data_order_windows_tmc);
+            [(word pc, LENGTH md5_compress_windows_tmc);
              (datap:int64, 64 * val(nb:int64))] /\
         val datap + 64 * val nb < 2 EXP 64 /\
         LENGTH blocks = val nb
         ==> ensures x86
-              (\s. bytes_loaded s (word pc) md5_block_asm_data_order_windows_tmc /\
+              (\s. bytes_loaded s (word pc) md5_compress_windows_tmc /\
                    read RIP s = word pc /\
                    read RSP s = stackpointer /\
                    read (memory :> bytes64 stackpointer) s = returnaddress /\
@@ -2760,26 +2760,26 @@ let MD5_BLOCK_ASM_DATA_ORDER_NOIBT_WINDOWS_SUBROUTINE_CORRECT = prove
                MAYCHANGE [memory :> bytes (statep, 16);
                           memory :> bytes (word_sub stackpointer (word 56), 56)])`,
   WINDOWS_X86_WRAP_STACK_TAC_MR
-    md5_block_asm_data_order_windows_tmc md5_block_asm_data_order_tmc
-    (REWRITE_RULE[fst MD5_BLOCK_ASM_DATA_ORDER_EXEC]
-       MD5_BLOCK_ASM_DATA_ORDER_CORRECT)
+    md5_compress_windows_tmc md5_compress_tmc
+    (REWRITE_RULE[fst MD5_COMPRESS_EXEC]
+       MD5_COMPRESS_CORRECT)
     `[RBP; RBX; R12; R14; R15]` 40);;
 
 (* IBT variant: identical statement against the full (untrimmed) Windows     *)
 (* _mc, derived from the NOIBT theorem by ADD_IBT_RULE.                      *)
-let MD5_BLOCK_ASM_DATA_ORDER_WINDOWS_SUBROUTINE_CORRECT = prove
+let MD5_COMPRESS_WINDOWS_SUBROUTINE_CORRECT = prove
  (`!a b c d blocks statep datap nb pc stackpointer returnaddress.
-        nonoverlapping (word pc, LENGTH md5_block_asm_data_order_windows_mc)
+        nonoverlapping (word pc, LENGTH md5_compress_windows_mc)
                        (statep:int64, 16) /\
         nonoverlapping (statep:int64, 16) (datap:int64, 64 * val(nb:int64)) /\
         nonoverlapping (word_sub stackpointer (word 56), 64) (statep:int64, 16) /\
         ALL (nonoverlapping (word_sub stackpointer (word 56), 56))
-            [(word pc, LENGTH md5_block_asm_data_order_windows_mc);
+            [(word pc, LENGTH md5_compress_windows_mc);
              (datap:int64, 64 * val(nb:int64))] /\
         val datap + 64 * val nb < 2 EXP 64 /\
         LENGTH blocks = val nb
         ==> ensures x86
-              (\s. bytes_loaded s (word pc) md5_block_asm_data_order_windows_mc /\
+              (\s. bytes_loaded s (word pc) md5_compress_windows_mc /\
                    read RIP s = word pc /\
                    read RSP s = stackpointer /\
                    read (memory :> bytes64 stackpointer) s = returnaddress /\
@@ -2805,4 +2805,4 @@ let MD5_BLOCK_ASM_DATA_ORDER_WINDOWS_SUBROUTINE_CORRECT = prove
               (MAYCHANGE [RSP] ,, WINDOWS_MAYCHANGE_REGS_AND_FLAGS_PERMITTED_BY_ABI ,,
                MAYCHANGE [memory :> bytes (statep, 16);
                           memory :> bytes (word_sub stackpointer (word 56), 56)])`,
-  MATCH_ACCEPT_TAC(ADD_IBT_RULE MD5_BLOCK_ASM_DATA_ORDER_NOIBT_WINDOWS_SUBROUTINE_CORRECT));;
+  MATCH_ACCEPT_TAC(ADD_IBT_RULE MD5_COMPRESS_NOIBT_WINDOWS_SUBROUTINE_CORRECT));;

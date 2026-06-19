@@ -6,9 +6,9 @@
 // ----------------------------------------------------------------------------
 // MD5 block compression
 //
-// extern void md5_block_asm_data_order(uint32_t state[static 4],
-//                                      const uint8_t *data,
-//                                      size_t num_blocks);
+// extern void md5_compress(uint32_t state[static 4],
+//                          const uint8_t *data,
+//                          size_t num_blocks);
 //
 // SysV: RDI = state, RSI = data, RDX = num_blocks. Win64 shim copies RCX,RDX,R8.
 // ----------------------------------------------------------------------------
@@ -17,12 +17,12 @@
 #include "_internal_s2n_bignum_x86_att.h"
 
 
-        S2N_BN_SYM_VISIBILITY_DIRECTIVE(md5_block_asm_data_order)
-        S2N_BN_FUNCTION_TYPE_DIRECTIVE(md5_block_asm_data_order)
-        S2N_BN_SYM_PRIVACY_DIRECTIVE(md5_block_asm_data_order)
+        S2N_BN_SYM_VISIBILITY_DIRECTIVE(md5_compress)
+        S2N_BN_FUNCTION_TYPE_DIRECTIVE(md5_compress)
+        S2N_BN_SYM_PRIVACY_DIRECTIVE(md5_compress)
         .text
 
-S2N_BN_SYMBOL(md5_block_asm_data_order):
+S2N_BN_SYMBOL(md5_compress):
         CFI_START
         _CET_ENDBR
 
@@ -40,7 +40,7 @@ S2N_BN_SYMBOL(md5_block_asm_data_order):
         CFI_PUSH(%r14)
         CFI_PUSH(%r15)
 
-Lmd5_block_asm_data_order_prologue:
+Lmd5_compress_prologue:
         movq %rdi, %rbp
         shlq $6, %rdx
         leaq (%rsi,%rdx,1), %rdi
@@ -49,9 +49,9 @@ Lmd5_block_asm_data_order_prologue:
         movl 8(%rbp), %ecx
         movl 12(%rbp), %edx
         cmpq %rdi, %rsi
-        je Lmd5_block_asm_data_order_end
+        je Lmd5_compress_end
 
-Lmd5_block_asm_data_order_loop:
+Lmd5_compress_loop:
         movl %eax, %r8d
         movl %ebx, %r9d
         movl %ecx, %r14d
@@ -664,9 +664,9 @@ Lmd5_block_asm_data_order_loop:
         addl %r15d, %edx
         addq $64, %rsi
         cmpq %rdi, %rsi
-        jb Lmd5_block_asm_data_order_loop
+        jb Lmd5_compress_loop
 
-Lmd5_block_asm_data_order_end:
+Lmd5_compress_end:
         movl %eax, (%rbp)
         movl %ebx, 4(%rbp)
         movl %ecx, 8(%rbp)
@@ -678,7 +678,7 @@ Lmd5_block_asm_data_order_end:
         CFI_STACKLOAD(%rbp, 32)
         CFI_INC_RSP(40)
 
-Lmd5_block_asm_data_order_epilogue:
+Lmd5_compress_epilogue:
 
 #if WINDOWS_ABI
         CFI_POP(%rsi)
@@ -687,7 +687,7 @@ Lmd5_block_asm_data_order_epilogue:
         CFI_RET
 
 
-S2N_BN_SIZE_DIRECTIVE(md5_block_asm_data_order)
+S2N_BN_SIZE_DIRECTIVE(md5_compress)
 
 
 #if defined(__linux__) && defined(__ELF__)
