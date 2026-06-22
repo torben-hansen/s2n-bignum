@@ -7,14 +7,7 @@
 (* MD5 block compression, scalar x86-64 (md5_compress).                      *)
 (*                                                                           *)
 (* The function processes num_blocks 64-byte input blocks, updating the      *)
-(* 4-doubleword MD5 chaining state in place.  Source: frozen transpiler      *)
-(* output x86/md5/md5_compress.S, assembled to the sibling                   *)
-(* objects .o (SysV, WINDOWS_ABI=0) and .obj (Windows, WINDOWS_ABI=1) by     *)
-(* the x86/Makefile pattern rules.                                           *)
-(*                                                                           *)
-(* Phase 0: machine-code freeze only -- the byte-exact assertion against     *)
-(* the object's .text, the trimmed variant, and the two execution rules.     *)
-(* The `ensures` correctness theorems are added in later phases.             *)
+(* 4-doubleword MD5 chaining state in place.                                 *)
 (* ========================================================================= *)
 
 needs "x86/proofs/base.ml";;
@@ -772,7 +765,7 @@ let MD5_COMPRESS_EXEC_FULL =
   X86_MK_EXEC_RULE md5_compress_mc;;
 
 (* ========================================================================= *)
-(* Phase 3 - one-round `ensures` (smallest meaningful unit).                 *)
+(* One-round `ensures` (smallest meaningful unit).                           *)
 (*                                                                           *)
 (* Round 0's instruction range, trimmed pc+0x37 .. pc+0x5a (10 insns):       *)
 (*   mov %edx,%r11d ; xor %ecx,%r11d ; lea K0(%rax,%r10),%eax ;              *)
@@ -859,7 +852,7 @@ let MD5_COMPRESS_ROUND0 = prove
   CONV_TAC WORD_RULE);;
 
 (* ========================================================================= *)
-(* Phase 4 - rounds 0..15 (the F group) with bytes32 LE message loads.       *)
+(* Rounds 0..15 (the F group) with bytes32 LE message loads.                 *)
 (*                                                                           *)
 (* A single 146-insn straight-line ensures term-explodes during X86_STEPS    *)
 (* (the 16th round nests 16 word_rols deep), so the range is split at the    *)
@@ -869,19 +862,19 @@ let MD5_COMPRESS_ROUND0 = prove
 (* re-simulated; composing standalone segment lemmas instead hits the        *)
 (* bytes_loaded leg-alignment trap).                                         *)
 (*                                                                           *)
-(* SOFTWARE-PIPELINED R10/R11.  The asm prefetches the next round'''s message *)
-(* word into R10 mid-round and emits the next round'''s F-prep mov %edx,%r11d *)
-(* in the previous round'''s tail, so at a 4-round boundary BOTH are live:    *)
+(* SOFTWARE-PIPELINED R10/R11.  The asm prefetches the next rounds message   *)
+(* word into R10 mid-round and emits the next rounds F-prep mov %edx,%r11d   *)
+(* in the previous rounds tail, so at a 4-round boundary BOTH are live:      *)
 (* the intermediate predicates carry R10 = EL (4k) m and R11 = EL 3 of       *)
 (* md5_rounds(4k).  The final R0_15 postcondition omits R10/R11 (dont-care   *)
 (* at the seam: the G group reloads both at entry).                          *)
+(*                                                                           *)
+(* Per-round spec machinery, generated as OCaml arrays to avoid 64x          *)
+(* copy-paste. md5_round_red.(i) reduces `md5_round i m [a;b;c;d]` to a      *)
+(* concrete 4-word list (K/rotate/msgidx plugged in); md5_lea_k.(i)          *)
+(* discharges the asm LEA's sign-extended 64-bit K[i] immediate truncated    *)
+(* back to 32 bits.  Same conv chain as MD5_ROUND_0/MD5_LEA_K0.              *)
 (* ========================================================================= *)
-
-(* --- Per-round spec machinery, generated as OCaml arrays to avoid 64x      *)
-(* --- copy-paste.  md5_round_red.(i) reduces `md5_round i m [a;b;c;d]` to a *)
-(* --- concrete 4-word list (K/rotate/msgidx plugged in); md5_lea_k.(i)      *)
-(* --- discharges the asm LEA's sign-extended 64-bit K[i] immediate          *)
-(* --- truncated back to 32 bits.  Same conv chain as MD5_ROUND_0/MD5_LEA_K0.*)
 
 (* All 64 RFC-1321 additive constants (= the spec md5_k table), round order. *)
 let md5_k_vals = [|
@@ -1172,7 +1165,7 @@ let MD5_COMPRESS_R0_15 = prove
         MD5_LEGK_TAC MD5_ROUNDS_16]]]);;
 
 (* ========================================================================= *)
-(* Phase 5a - the G group (rounds 16..31), as a clean-seam `ensures`.        *)
+(* The G group (rounds 16..31), as a clean-seam `ensures`.                   *)
 (*                                                                           *)
 (* MD5_G_GROUP runs from pc+0x239 (exactly MD5_COMPRESS_R0_15's  *)
 (* exit) to pc+0x4a1, advancing the working state from md5_rounds 16 to      *)
@@ -1227,7 +1220,7 @@ let MD5_REFOLD_G_TAC : tactic =
            DIMINDEX_32; DIMINDEX_64; LE_REFL; ARITH] THEN
   REWRITE_TAC(GSYM MD5_G_BRIDGE_ASM :: Array.to_list md5_lea_k);;
 
-(* Frame-robust G segment closer (same `,,` frame detector as               *)
+(* Frame-robust G segment closer (same `,,` frame detector as                *)
 (* MD5_CLOSE_SEG_TAC, but with the G refold).                                *)
 let MD5_CLOSE_SEG_G_TAC : tactic =
   RULE_ASSUM_TAC(REWRITE_RULE[WORD_ADD_0]) THEN
@@ -1383,7 +1376,7 @@ let MD5_G_GROUP = prove
         MD5_LEGK_G_TAC MD5_ROUNDS_32 44]]]);;
 
 (* ========================================================================= *)
-(* Phase 5a - the H group (rounds 32..47), as a clean-seam `ensures`.        *)
+(* The H group (rounds 32..47), as a clean-seam `ensures`.                   *)
 (*                                                                           *)
 (* MD5_H_GROUP runs from pc+0x4a1 (= MD5_G_GROUP's exit) to pc+0x676,        *)
 (* advancing md5_rounds 32 -> md5_rounds 48.  Same clean seam form as G.     *)
@@ -1565,7 +1558,7 @@ let MD5_H_GROUP = prove
         MD5_LEGK_H_TAC MD5_ROUNDS_48 32]]]);;
 
 (* ========================================================================= *)
-(* Phase 5a - the I group (rounds 48..63), as a clean-seam `ensures`.        *)
+(* Te I group (rounds 48..63), as a clean-seam `ensures`.                    *)
 (*                                                                           *)
 (* MD5_I_GROUP runs from pc+0x676 (= MD5_H_GROUP's exit) to pc+0x8b1,        *)
 (* advancing md5_rounds 48 -> md5_rounds 64 (all 64 rounds done).            *)
@@ -1593,7 +1586,7 @@ let MD5_H_GROUP = prove
 (*      closes the R11 conjunct too.                                         *)
 (*                                                                           *)
 (* Step counts 39/36/36/36; boundaries 0x70e / 0x79a / 0x826.  Exit pc+0x8b1 *)
-(* is the first add-back insn `add %r8d,%eax` (Phase 5b territory).          *)
+(* is the first add-back insn `add %r8d,%eax`.                               *)
 (* ========================================================================= *)
 
 (* word_zx of the all-ones immediate, BOTH directions: the asm's r11 holds   *)
@@ -1773,7 +1766,7 @@ let MD5_I_GROUP = prove
         MD5_LEGK_I_TAC MD5_ROUNDS_64 36]]]);;
 
 (* ========================================================================= *)
-(* Phase 5b - the add-back (Davies-Meyer feed-forward).                      *)
+(* The add-back (Davies-Meyer feed-forward).                                 *)
 (*                                                                           *)
 (* MD5_ADDBACK_SEG runs the four register adds at pc+0x8b1 .. pc+0x8bd:      *)
 (*   add %r8d,%eax ; add %r9d,%ebx ; add %r14d,%ecx ; add %r15d,%edx         *)
@@ -1826,9 +1819,9 @@ let MD5_ADDBACK_SEG = prove
   AP_TERM_TAC THEN CONV_TAC WORD_RULE);;
 
 (* ========================================================================= *)
-(* Phase 5b (final): the full single-block loop BODY.                        *)
+(* The full single-block loop BODY.                                          *)
 (*                                                                           *)
-(* MD5_COMPRESS_BODY chains the four committed GROUP ensures     *)
+(* MD5_COMPRESS_BODY chains the four committed GROUP ensures                 *)
 (* (R0_15 ;; G ;; H ;; I) and the add-back (MD5_ADDBACK_SEG) into one        *)
 (* ensures from pc+0x34 (core entry, first M[0] load) to pc+0x8bd (just      *)
 (* past the four feed-forward adds).  Post: (RAX,RBX,RCX,RDX) = word_zx of   *)
@@ -1867,8 +1860,7 @@ let MD5_ADDBACK_SEG = prove
 (* NB the stores to state[4] (mov %eax,0x0(%rbp) at pc+0x8ca..) are NOT in   *)
 (* this body: the asm does the feed-forward (0x8b1), then the loop back-edge *)
 (* `add $0x40,%rsi; cmp %rdi,%rsi; jb` (0x8bd..0x8c9), and the stores at     *)
-(* 0x8ca run only on the loop-EXIT path.  They belong with the Phase 6 loop  *)
-(* structure, so BODY stops at 0x8bd.                                        *)
+(* 0x8ca run only on the loop-EXIT path.                                     *)
 (* ========================================================================= *)
 
 (* Lift a committed group/segment lemma whose seam predicate additionally    *)
@@ -1983,11 +1975,11 @@ let MD5_COMPRESS_BODY = prove
     MD5_LIFT_GROUP_REGS MD5_ADDBACK_SEG]);;
 
 (* ========================================================================= *)
-(* Phase 6a - one loop iteration + spec-level loop algebra.                  *)
+(* One loop iteration + spec-level loop algebra.                             *)
 (*                                                                           *)
 (* MD5_LIFT_BODY is MD5_LIFT_GROUP_REGS WITHOUT the bytes_loaded recovery    *)
 (* step (NONSELFMODIFYING_STATE_UPDATE_TAC): unlike the group/segment        *)
-(* lemmas, MD5_COMPRESS_BODY's postcondition ALREADY carries     *)
+(* lemmas, MD5_COMPRESS_BODY's postcondition ALREADY carries                 *)
 (* `bytes_loaded s' ...`, so the lifted post needs no separate re-derivation *)
 (* (and re-deriving it clashes -- `could not prove that updates will not     *)
 (* modify the program code`).  All other deltas vs MD5_LIFT_GROUP_REGS are   *)
@@ -2316,7 +2308,7 @@ let MD5_LOOP_BODY_STEP = prove
        [ASM_REWRITE_TAC[] THEN ASM_ARITH_TAC; DISCH_THEN ACCEPT_TAC]]]);;
 
 (* ========================================================================= *)
-(* Phase 6b: the core theorem MD5_COMPRESS_CORRECT.              *)
+(* The core theorem MD5_COMPRESS_CORRECT.                                    *)
 (*                                                                           *)
 (* Entry pc+0x8 (after the 5 callee-save pushes, in-frame SP), exit pc+0x8d6 *)
 (* (before the pops).  C_ARGUMENTS [statep; datap; num_blocks] (rdi,rsi,rdx).*)
@@ -2460,7 +2452,7 @@ let MD5_COMPRESS_CORRECT = prove
              LE_REFL; ARITH]]);;
 
 (* ========================================================================= *)
-(* Phase 7: the SysV subroutine theorems (full function, incl. prologue and  *)
+(* The SysV subroutine theorems (full function, incl. prologue and           *)
 (* epilogue), wrapping the core via the standard return-stack tactic.        *)
 (*                                                                           *)
 (* Prologue (entry .. pc+0x8 core start): 5 callee-save pushes               *)
@@ -2570,7 +2562,7 @@ let MD5_COMPRESS_SUBROUTINE_CORRECT = prove
   MATCH_ACCEPT_TAC(ADD_IBT_RULE MD5_COMPRESS_NOIBT_SUBROUTINE_CORRECT));;
 
 (* ========================================================================= *)
-(* Phase 8: the Windows-ABI subroutine theorems.                             *)
+(* The Windows-ABI subroutine theorems.                                      *)
 (*                                                                           *)
 (* The Windows object is the same MD5 body wrapped in a Windows prologue/    *)
 (* epilogue.  Layout (objdump of the .obj):                                  *)

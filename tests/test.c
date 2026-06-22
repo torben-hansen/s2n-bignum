@@ -15589,11 +15589,8 @@ int test_secp256k1_jmixadd_alt(void)
   return 0;
 }
 
-// MD5 reference for the differential test of md5_compress (round constants/
-// schedule/rotates from aws-lc crypto/fipsmodule/md5/md5.c). Little-endian
-// 32-bit primitives match the asm's `movl N(%rsi),%rNd` loads; all 16 words
-// are loaded up front.
-
+// Helper functions for MD5 differential KATs. Reference implementation taken
+// from aws-lc: crypto/fipsmodule/md5/md5.c.
 static uint32_t md5ref_load_u32_le(const uint8_t *p)
 { return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) |
          ((uint32_t)p[3] << 24);
@@ -15704,9 +15701,9 @@ static void reference_md5_block(uint32_t *state, const uint8_t *data,
 #undef MD5REF_I
 #undef MD5REF_RND
 
-// Differential test: the asm block fn must match the C reference on random
-// (initial state, num blocks of random data) for num in {0,1,2,3,4}; num==0
-// exercises the no-op guard. Random input drawn from the shared bb1 buffer.
+// Differential test: verify that asm block matches the C reference on random
+// pair of initial state and num blocks of random data. block size draw from the
+// interval [0,4]
 int test_md5_compress(void)
 { uint64_t t, i, num;
   uint32_t s_ref[4], s_asm[4];
